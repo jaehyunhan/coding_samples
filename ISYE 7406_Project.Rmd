@@ -1,0 +1,1433 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+
+-------------------------------------------------------------
+
+### Data Preparation
+
+```{r}
+library(readxl)
+library(readr)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+
+excel.list = list.files(pattern='*.xlsx')
+csv.list = list.files(pattern='*.csv')
+
+df.list1 = lapply(excel.list, read_excel)
+df.list2 = lapply(csv.list, read_csv)
+
+names(df.list1) = excel.list
+names(df.list2) = csv.list
+
+df.list = NULL
+df.list = append(df.list1, df.list2)
+df.list
+```
+
+
+```{r}
+all = merge(dplyr::select(df.list$WB_waterstress.csv, -c("Indicator Name", "Country")), 
+            dplyr::select(df.list$WB_gdpppp.csv, -c("Indicator Name", "Country")),  
+            all.x = TRUE,
+            all.y = TRUE, 
+            by=c("ISO", "Year"))
+all = merge(all, 
+            dplyr::select(df.list$WB_gdpgrowth.csv, -c("Indicator Name","Indicator Code", "Country")),  
+            all.x = TRUE,
+            all.y = TRUE, 
+            by=c("ISO", "Year"))
+all = merge(all, 
+            dplyr::select(df.list$WB_annualfreshwater.csv, -c("Indicator Name","Indicator Code", "Country")),  
+            all.x = TRUE,
+            all.y = TRUE, 
+            by=c("ISO", "Year"))
+
+all = merge(all, 
+            dplyr::select(df.list$water.csv, -c("Country")),  
+            all.x = TRUE,
+            all.y = TRUE, 
+            by=c("ISO", "Year"))
+
+all = merge(all, 
+            dplyr::select(df.list$vulnerability.csv, -c("Country")),  
+            all.x = TRUE,
+            all.y = TRUE, 
+            by=c("ISO", "Year"))
+
+all = merge(all, 
+            dplyr::select(df.list$social.csv, -c("Country")),  
+            all.x = TRUE,
+            all.y = TRUE, 
+            by=c("ISO", "Year"))
+all = merge(all, 
+            dplyr::select(df.list$sensitivity.csv, -c("Country")),  
+            all.x = TRUE,
+            all.y = TRUE, 
+            by=c("ISO", "Year"))
+
+all = merge(all, 
+            dplyr::select(df.list$readiness.csv, -c("Country")),  
+            all.x = TRUE,
+            all.y = TRUE, 
+            by=c("ISO", "Year"))
+
+all = merge(all, 
+            dplyr::select(df.list$OWID_refugees.csv, -c("Country")),  
+            all.x = TRUE,
+            all.y = TRUE, 
+            by=c("ISO", "Year"))
+
+all = merge(all, 
+            dplyr::select(df.list$OWID_gini.csv, -c("Country")),  
+            all.x = TRUE,
+            all.y = TRUE, 
+            by=c("ISO", "Year"))
+
+all = merge(all, 
+            dplyr::select(df.list$OWID_emigration.csv, -c("Country")),  
+            all.x = TRUE,
+            all.y = TRUE, 
+            by=c("ISO", "Year"))
+
+all = merge(all, 
+            dplyr::select(df.list$infrastructure.csv, -c("Country")),  
+            all.x = TRUE,
+            all.y = TRUE, 
+            by=c("ISO", "Year"))
+
+all = merge(all, 
+            dplyr::select(df.list$health.csv, -c("Country")),  
+            all.x = TRUE,
+            all.y = TRUE, 
+            by=c("ISO", "Year"))
+
+all = merge(all, 
+            dplyr::select(df.list$habitat.csv, -c("Country")),  
+            all.x = TRUE,
+            all.y = TRUE, 
+            by=c("ISO", "Year"))
+
+all = merge(all, 
+            dplyr::select(df.list$governance.csv, -c("Country")),  
+            all.x = TRUE,
+            all.y = TRUE, 
+            by=c("ISO", "Year"))
+
+all = merge(all, 
+            dplyr::select(df.list$food.csv, -c("Country")),  
+            all.x = TRUE,
+            all.y = TRUE, 
+            by=c("ISO", "Year"))
+
+all = merge(all, 
+            dplyr::select(df.list$exposure.csv, -c("Country")),  
+            all.x = TRUE,
+            all.y = TRUE, 
+            by=c("ISO", "Year"))
+
+all = merge(all, 
+            dplyr::select(df.list$ecosystems.csv, -c("Country")),  
+            all.x = TRUE,
+            all.y = TRUE, 
+            by=c("ISO", "Year"))
+
+all = merge(all, 
+            dplyr::select(df.list$economic.csv, -c("Country")),  
+            all.x = TRUE,
+            all.y = TRUE, 
+            by=c("ISO", "Year"))
+
+all = merge(all, 
+            dplyr::select(df.list$capacity.csv, -c("Country")),  
+            all.x = TRUE,
+            all.y = TRUE, 
+            by=c("ISO", "Year"))
+
+all = merge(all, 
+            dplyr::select(df.list$UN_population.xlsx, -c("Country")),  
+            all.x = TRUE,
+            all.y = TRUE, 
+            by=c("ISO", "Year"))
+
+
+
+idmc = df.list$`IDMC_Internal_Displacement_Conflict-Violence_Disasters (1).xlsx`
+
+
+all = merge(all, 
+      idmc, 
+      all.x = TRUE, 
+      all.y = TRUE, 
+      by.x = c("ISO", "Year"),
+      by.y = c("ISO3", "Year"))
+
+emdat_nd = df.list$`EM-DAT_naturaldisasters.xlsx`
+
+
+all = merge(all, 
+      emdat_nd[,-1], 
+      all.x = TRUE, 
+      all.y = TRUE, 
+      by.x = c("ISO", "Year"),
+      by.y = c("ISO", "Start Year"))
+
+
+# write.csv(all, "df_combined_20241029.csv")
+
+```
+
+
+
+
+```{r}
+# regional group
+region_db = read_excel("USE THIS - ISO.xlsx")
+region_db = region_db %>% 
+  select("ISO...1", "Region_World Bank...5")
+colnames(region_db) = c("ISO", "WB_region")
+region_db = region_db %>% 
+  filter(!is.na(WB_region)) %>%
+  unique()
+region_db
+
+all = merge(all, 
+      region_db,
+      all.x = TRUE,
+      all.y = TRUE, 
+      by="ISO")
+
+# income group
+incomegroup_db = read_excel("USE THIS - Country Income Group WB.xlsx", sheet = "imf (2023)")
+incomegroup_db
+
+all = merge(all, 
+      dplyr::select(incomegroup_db, "ISO", "IMF Classification (3)"),
+      all.x = TRUE,
+      all.y = TRUE, 
+      by="ISO")
+
+# write.csv(all, "df_combined_20241106.csv")
+```
+
+
+
+---------------------------------------------------------
+
+
+```{r}
+# all = read_csv("df_combined_20241029.csv")
+head(all)
+```
+
+
+
+
+-----------------------------------------------
+
+### Data Preprocessing - Special Emphasis on Imputation
+
+```{r}
+all2 = all %>% filter(!is.na(WB_region) & Year <= 2023)
+
+all2 = all2 %>% select(-Name)
+all2 = all2 %>% select(-Country)
+
+all2 = all2 %>% select(-c(`Conflict Stock Displacement`, 
+                   `Conflict Internal Displacements`,
+                   `Disaster Internal Displacements`,
+                   `Disaster Stock Displacement`
+                   ))
+
+all2 = all2 %>% filter(!is.na(`Total Natural Disasters`))
+
+
+disaster_types = c("Drought","Earthquake" ,"Extreme temperature","Flood","Glacial lake outburst flood","Mass movement (dry)", "Mass movement (wet)","Storm","Volcanic activity","Wildfire")
+
+
+all2[disaster_types] = lapply(all2[disaster_types], function(x) ifelse(is.na(x), 0, x))
+
+# write.csv(all2, "df_final_20241106.csv")
+
+```
+
+
+```{r}
+library(readxl)
+library(readr)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+
+all2 = read.csv("df_final_20241106.csv")
+all2 = all2 %>% dplyr::select(-X) %>% arrange(ISO,Year)
+all2_colnames = colnames(all2)
+all2_colnames = gsub("\\.", "", all2_colnames)
+colnames(all2) = all2_colnames
+
+
+factors_cols = c(1,44:45)
+numeric_cols = c(2:43)
+all2[factors_cols] = lapply(all2[factors_cols], factor)
+
+summary(all2)
+head(all2)
+```
+
+
+#### Columns where more than 40% of the values are NA
+
+```{r}
+# Columns where more than 40% of the values are NA 
+
+na_vals = data.frame(sapply(all2, function(col) mean(is.na(col))*100))
+colnames(na_vals) = "na_perc"
+na_vals %>% filter(na_perc>40)
+
+```
+
+```{r}
+na_idpstock = all2 %>% 
+  filter(is.na(DisasterStockDisplacementRaw)) %>%
+  select(ISO) %>%
+  group_by(ISO) %>%
+  count() %>%
+  arrange(desc(n))
+
+na_idpstock
+```
+
+```{r}
+idpstock = all2 %>%
+  select("ISO", "Year", "DisasterStockDisplacementRaw") %>%
+    arrange(Year) %>%
+    pivot_wider(names_from = Year,
+              values_from = DisasterStockDisplacementRaw) 
+
+idpstock[match(na_idpstock$ISO, idpstock$ISO),] 
+```
+
+
+
+```{r}
+all2 %>% 
+  select(ISO, Year, NoHomeless) %>% 
+  arrange(Year) %>%
+  pivot_wider(names_from = Year,
+              values_from = NoHomeless)
+```
+
+
+
+```{r}
+#`Conflict Stock Displacement (Raw)`,
+#         `Conflict Internal Displacements (Raw)`,
+#         `Disaster Stock Displacement (Raw)`,
+#         `Disaster Internal Displacements (Raw)`)
+
+
+
+all2 %>%
+  select(ISO, 
+         Year, 
+         DisasterStockDisplacementRaw) %>%
+  arrange(Year) %>%
+  pivot_wider(names_from = Year,
+              values_from = DisasterStockDisplacementRaw)
+  
+
+
+```
+
+
+```{r}
+pop_cols_inds = c(1, 2, 24, 26:44)
+all2[pop_cols_inds]
+```
+
+
+------------------------
+### EDA
+
+```{r fig.width=12, fig.height=12}
+library(corrplot)
+
+all2_numerics = all2 %>% select(where(is.numeric))
+
+corr_all2_numerics = cor(all2_numerics, use="complete.obs")
+y.corr = data.frame(corr_all2_numerics["DisasterStockDisplacementRaw",])
+colnames(y.corr) = "corr"
+y.corr %>% arrange(desc(abs(corr)))
+```
+
+```{r fig.align="center", results='asis',  fig.width = 20, fig.height= 40}
+
+library(gridExtra)
+library(ggplot2)
+library(viridis)
+
+
+
+p_grid = list()
+i = 1
+
+
+
+for (c in colnames(all2[3:ncol(all2)])){
+  p = all2 %>% 
+    filter(!is.na(DisasterStockDisplacementRaw)) %>%
+    ggplot(aes(y = DisasterStockDisplacementRaw, x = .data[[c]])) +
+      labs(title = c, x = "", y ="") + 
+      geom_point(color = "black", size = 2, show.legend = FALSE) +
+    scale_fill_viridis(discrete = TRUE, alpha=0.6) +
+    theme(legend.position="none")
+  p_grid[[i]] = p
+  i = i+1
+}
+
+do.call(grid.arrange, c(p_grid, ncol = 4))
+  
+```
+
+
+
+
+
+------------------------
+
+### Predictors Imputation
+
+
+```{r}
+head(all2)
+
+sum(is.na(all2$WB_region))
+sum(is.na(all2$IMFClassification3))
+```
+
+
+```{r}
+install.packages(c("mice",  "writexl", "data.table"))
+
+# impute missing predictors
+def_imputation = function(train){
+  
+  library(mice)
+  
+  # 1) mice rf using all datasets 
+  train_imputed_rf = mice(train, n = 5, method = "rf", printFlag = FALSE)
+  
+  train_imputed_rf1 = complete(train_imputed_rf, 1)
+  train_imputed_rf2 = complete(train_imputed_rf, 2) 
+  train_imputed_rf3 = complete(train_imputed_rf, 3)
+  train_imputed_rf4 = complete(train_imputed_rf, 4) 
+  train_imputed_rf5 = complete(train_imputed_rf, 5) 
+  
+  # 2) mice rf using wb region
+  region_imputed_rf1 = data.frame()
+  region_imputed_rf2 = data.frame()
+  region_imputed_rf3 = data.frame()
+  region_imputed_rf4 = data.frame()
+  region_imputed_rf5 = data.frame()
+  
+  
+  for (region in unique(train$WB_region)){
+    print(paste("Index:", region))
+    temp = train %>%
+      filter(WB_region == region)
+    
+    temp_err = tryCatch(
+      {mice(temp, n = 5, method = "rf", printFlag = FALSE)}, 
+      error = function(e) {
+        message("Error in mice with method 'rf' for region ", region, ": ", e$message)
+        message("Switching to method = 'mean'.")
+        mice(temp, n = 5, method = "mean", printFlag = FALSE)
+    })
+    
+    
+    temp_rf1 = complete(temp_err, 1)
+    temp_rf2 = complete(temp_err, 2)
+    temp_rf3 = complete(temp_err, 3)
+    temp_rf4 = complete(temp_err, 4)
+    temp_rf5 = complete(temp_err, 5)
+    region_imputed_rf1 = rbind(region_imputed_rf1, temp_rf1)
+    region_imputed_rf2 = rbind(region_imputed_rf2, temp_rf2)
+    region_imputed_rf3 = rbind(region_imputed_rf3, temp_rf3)
+    region_imputed_rf4 = rbind(region_imputed_rf4, temp_rf4)
+    region_imputed_rf5 = rbind(region_imputed_rf5, temp_rf5)
+    
+  }
+  
+  
+  # 3) mice rf using imf group
+  imf_imputed_rf1 = data.frame()
+  imf_imputed_rf2 = data.frame()
+  imf_imputed_rf3 = data.frame()
+  imf_imputed_rf4 = data.frame()
+  imf_imputed_rf5 = data.frame()
+  
+  for (imf in unique(train$IMFClassification3)){
+    print(paste("Index:", imf))
+    if (is.na(imf)){
+      temp = train %>%
+        filter(is.na(IMFClassification3))
+    } else {
+      temp = train %>%
+        filter(IMFClassification3 == imf) 
+    }
+    
+    temp_err = tryCatch(
+      {mice(temp, n = 5, method = "rf", printFlag = FALSE)}, 
+      error = function(e) {
+        message("Error in mice with method 'rf' for region ", region, ": ", e$message)
+        message("Switching to method = 'mean'.")
+        mice(temp, n = 5, method = "mean", printFlag = FALSE)
+    })
+    
+    
+    temp_rf1 = complete(temp_err, 1)
+    temp_rf2 = complete(temp_err, 2)
+    temp_rf3 = complete(temp_err, 3)
+    temp_rf4 = complete(temp_err, 4)
+    temp_rf5 = complete(temp_err, 5)
+    imf_imputed_rf1 = rbind(imf_imputed_rf1, temp_rf1)
+    imf_imputed_rf2 = rbind(imf_imputed_rf2, temp_rf2)
+    imf_imputed_rf3 = rbind(imf_imputed_rf3, temp_rf3)
+    imf_imputed_rf4 = rbind(imf_imputed_rf4, temp_rf4)
+    imf_imputed_rf5 = rbind(imf_imputed_rf5, temp_rf5)
+  }
+
+  
+  imputed_lists = list(train_imputed_rf1,
+                     train_imputed_rf2,
+                     train_imputed_rf3,
+                     train_imputed_rf4,
+                     train_imputed_rf5,
+                     region_imputed_rf1,
+                     region_imputed_rf2,
+                     region_imputed_rf3,
+                     region_imputed_rf4,
+                     region_imputed_rf5,
+                     imf_imputed_rf1,
+                     imf_imputed_rf2,
+                     imf_imputed_rf3,
+                     imf_imputed_rf4,
+                     imf_imputed_rf5)
+
+
+
+  library(writexl)
+  
+  
+  
+  write_xlsx(imputed_lists, path = paste0("C:/Users/JHan/OneDrive - Center Strategic Intl Studies Inc CSIS/GATech/ISYE 7406/Project/", "imputed_all2_20241106.xlsx"))
+  
+  library(data.table)
+  
+  train_imputed_final = rbindlist(imputed_lists)[, lapply(.SD, function(col) {
+    if (is.numeric(col)) {
+      as.numeric(median(col, na.rm = TRUE))
+    } else if (is.factor(col)) {
+      # Calculate mode for factors
+      names(sort(table(col), decreasing = TRUE))[1]
+    } else {
+      NA  # Handle other types if needed
+    }
+  }), by = .(ISO, Year)]
+  
+  
+  return (train_imputed_final)
+  
+}
+```
+
+
+
+
+
+```{r}
+# impute missing predictors, except IMF income group classification.
+def_imputation2 = function(train){
+  
+  library(mice)
+  
+  # 1) mice rf using all datasets 
+  train_imputed_rf = mice(train, n = 5, method = "rf", printFlag = FALSE)
+  
+  train_imputed_rf1 = complete(train_imputed_rf, 1)
+  train_imputed_rf2 = complete(train_imputed_rf, 2) 
+  train_imputed_rf3 = complete(train_imputed_rf, 3)
+  train_imputed_rf4 = complete(train_imputed_rf, 4) 
+  train_imputed_rf5 = complete(train_imputed_rf, 5) 
+  
+  # 2) mice rf using wb region
+  region_imputed_rf1 = data.frame()
+  region_imputed_rf2 = data.frame()
+  region_imputed_rf3 = data.frame()
+  region_imputed_rf4 = data.frame()
+  region_imputed_rf5 = data.frame()
+  
+  
+  for (region in unique(train$WB_region)){
+    print(paste("Index:", region))
+    temp = train %>%
+      filter(WB_region == region)
+    
+    temp_err = tryCatch(
+      {mice(temp, n = 5, method = "rf", printFlag = FALSE)}, 
+      error = function(e) {
+        message("Error in mice with method 'rf' for region ", region, ": ", e$message)
+        message("Switching to method = 'mean'.")
+        mice(temp, n = 5, method = "mean", printFlag = FALSE)
+    })
+    
+    
+    temp_rf1 = complete(temp_err, 1)
+    temp_rf2 = complete(temp_err, 2)
+    temp_rf3 = complete(temp_err, 3)
+    temp_rf4 = complete(temp_err, 4)
+    temp_rf5 = complete(temp_err, 5)
+    region_imputed_rf1 = rbind(region_imputed_rf1, temp_rf1)
+    region_imputed_rf2 = rbind(region_imputed_rf2, temp_rf2)
+    region_imputed_rf3 = rbind(region_imputed_rf3, temp_rf3)
+    region_imputed_rf4 = rbind(region_imputed_rf4, temp_rf4)
+    region_imputed_rf5 = rbind(region_imputed_rf5, temp_rf5)
+    
+  }
+  
+  
+  # 3) mice rf using imf group
+  imf_imputed_rf1 = data.frame()
+  imf_imputed_rf2 = data.frame()
+  imf_imputed_rf3 = data.frame()
+  imf_imputed_rf4 = data.frame()
+  imf_imputed_rf5 = data.frame()
+  
+  for (imf in unique(train$IMFClassification3)){
+    print(paste("Index:", imf))
+    if (is.na(imf)){
+      temp = train %>%
+        filter(is.na(IMFClassification3))
+    } else {
+      temp = train %>%
+        filter(IMFClassification3 == imf)
+    }
+    
+    temp_err = tryCatch(
+      {mice(temp, n = 5, method = "rf", printFlag = FALSE)}, 
+      error = function(e) {
+        message("Error in mice with method 'rf' for region ", region, ": ", e$message)
+        message("Switching to method = 'mean'.")
+        mice(temp, n = 5, method = "mean", printFlag = FALSE)
+    })
+    
+    
+    temp_rf1 = complete(temp_err, 1)
+    temp_rf2 = complete(temp_err, 2)
+    temp_rf3 = complete(temp_err, 3)
+    temp_rf4 = complete(temp_err, 4)
+    temp_rf5 = complete(temp_err, 5)
+    imf_imputed_rf1 = rbind(imf_imputed_rf1, temp_rf1)
+    imf_imputed_rf2 = rbind(imf_imputed_rf2, temp_rf2)
+    imf_imputed_rf3 = rbind(imf_imputed_rf3, temp_rf3)
+    imf_imputed_rf4 = rbind(imf_imputed_rf4, temp_rf4)
+    imf_imputed_rf5 = rbind(imf_imputed_rf5, temp_rf5)
+  }
+
+  
+  imputed_lists = list(train_imputed_rf1,
+                     train_imputed_rf2,
+                     train_imputed_rf3,
+                     train_imputed_rf4,
+                     train_imputed_rf5,
+                     region_imputed_rf1,
+                     region_imputed_rf2,
+                     region_imputed_rf3,
+                     region_imputed_rf4,
+                     region_imputed_rf5,
+                     imf_imputed_rf1,
+                     imf_imputed_rf2,
+                     imf_imputed_rf3,
+                     imf_imputed_rf4,
+                     imf_imputed_rf5)
+
+
+
+  library(writexl)
+  
+  
+  write_xlsx(imputed_lists, path = paste0("C:/Users/JHan/OneDrive - Center Strategic Intl Studies Inc CSIS/GATech/ISYE 7406/Project/", "imputed_all2_20241107.xlsx"))
+  
+  library(data.table)
+  
+  train_imputed_final = rbindlist(imputed_lists)[, lapply(.SD, function(col) {
+    if (is.numeric(col)) {
+      as.numeric(median(col, na.rm = TRUE))
+    } else if (is.factor(col)) {
+      # Calculate mode for factors
+      names(sort(table(col), decreasing = TRUE))[1]
+    } else {
+      NA  # Handle other types if needed
+    }
+  }), by = .(ISO, Year)]
+  
+  
+  train_imputed_final = merge(select(train, c("ISO", "Year", "WB_region", "IMFClassification3")), 
+                              select(train_imputed_final, -c("WB_region", "IMFClassification3")),
+                              by = c("ISO", "Year"))
+  return (train_imputed_final)
+  
+}
+```
+
+
+
+
+```{r}
+all2 = all2 %>% select(-c("Massmovementdry","Emigrants", "ConflictInternalDisplacementsRaw", "Gini"))
+
+all2_imputed = all2 %>% 
+  select(-"DisasterStockDisplacementRaw") %>%
+  def_imputation2()
+
+all2_y = all2 %>%
+  select(ISO, Year, DisasterStockDisplacementRaw)
+
+all2_imputed = merge(all2_y,
+      all2_imputed,
+      by = c("ISO","Year"))
+
+
+library(readr)
+#all2_imputed = read_csv("all2_imputed_final_20241106.csv")
+# all2_imputed = all2_imputed %>% select(-`...1`)
+all2_imputed_OG = all2_imputed
+all2_imputed
+
+```
+
+
+```{r}
+temp = all2_imputed %>%
+  select(-c(DisasterStockDisplacementRaw, IMFClassification3)) 
+sum(is.na(temp))
+```
+
+
+
+```{r fig.align="center", results='asis',  fig.width = 20, fig.height= 40}
+
+
+p_grid = list()
+i = 1
+
+
+for (c in colnames(all2_imputed[3:ncol(all2_imputed)])){
+  p = all2_imputed %>% 
+    filter(!is.na(DisasterStockDisplacementRaw)) %>%
+    ggplot(aes(y = DisasterStockDisplacementRaw, x = .data[[c]])) +
+      labs(title = c, x = "", y ="") + 
+      geom_point(color = "black", size = 2, show.legend = FALSE) +
+    scale_fill_viridis(discrete = TRUE, alpha=0.6) +
+    theme(legend.position="none")
+  p_grid[[i]] = p
+  i = i+1
+}
+
+do.call(grid.arrange, c(p_grid, ncol = 4))
+  
+```
+
+
+
+
+```{r fig.align="center", results='asis',  fig.width = 60, fig.height= 30}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+
+# Assuming `all2` is the original dataset and `all2_imputed` is the dataset after imputation.
+# To make the data compatible for ggplot, we can pivot each dataset to long format.
+
+# Add an identifier for each dataset
+all2_imputed_temp = all2_imputed
+all2_imputed_temp$source = "Imputed"
+all2_imputed_temp = all2_imputed_temp %>% dplyr::select(-"...1")
+all2_temp = all2 
+all2_temp$source = "Original"
+all2_temp = all2_temp %>% dplyr::select(colnames(all2_imputed_temp))
+
+
+
+# Combine both datasets for easy plotting
+all2_combined_data <- rbind(all2_temp, all2_imputed_temp)
+all2_combined_data = unique(all2_combined_data)
+
+
+# all2_combined_data = all2_combined_data %>% select(-c(ISO, Year))
+
+combined_data_numeric = all2_combined_data %>%
+  dplyr::select(where(is.numeric), source)
+
+
+# Pivot to long format
+combined_data_long <- combined_data_numeric %>%
+  pivot_longer(cols = -source, names_to = "variable", values_to = "value")
+
+combined_data_long
+
+# Plot histograms
+ggplot(combined_data_long, aes(x = value, fill = source)) +
+  geom_histogram(position = "identity", alpha = 0.5, bins = 30) +
+  facet_wrap(~ variable, scales = "free", ncol = 8) +
+  labs(title = "Comparison of Original and Imputed Datasets",
+       x = "Value", y = "Count") +
+  theme_minimal() +
+  scale_fill_manual(values = c("Original" = "blue", "Imputed" = "red"))
+```
+
+
+
+```{r fig.align="center", results='asis',  fig.width = 10, fig.height= 5}
+
+filtered_wb = all2_combined_data %>%
+  select(ISO, Year, ConflictStockDisplacementRaw, source, WB_region) 
+
+
+filtered_imf = all2_combined_data %>%
+  select(ISO, Year, ConflictStockDisplacementRaw, source, IMFClassification3) 
+
+
+  
+ggplot(filtered_wb, aes(x = Year, y = ConflictStockDisplacementRaw, color = source)) +
+  geom_point(position = "jitter") +
+  facet_wrap(~ WB_region) +
+  labs(x = "Year", y = "Conflict Stock Displacement (Raw)", color = "Source") +
+  theme_minimal()
+
+
+  
+ggplot(filtered_imf, aes(x = Year, y = ConflictStockDisplacementRaw, color = source)) +
+  geom_point(position = "jitter") +
+  facet_wrap(~ IMFClassification3) +
+  labs(x = "Year", y = "Conflict Stock Displacement (Raw)", color = "Source") +
+  theme_minimal()
+```
+
+
+
+
+```{r}
+no_imf = all2 %>%
+  filter(is.na(IMFClassification3)) %>%
+  select(c(ISO, Year))
+
+all2_imputed %>%
+  filter(ISO %in% no_imf$ISO & Year %in% no_imf$Year) %>%
+  select(c(ISO, Year, IMFClassification3))
+  
+```
+
+
+
+```{r}
+conflict_review = all2_combined_data %>% 
+  select(ISO, Year, WB_region, IMFClassification3, ConflictStockDisplacementRaw, source)
+
+conflict_review = conflict_review %>%
+  pivot_wider(
+    names_from = source,  # Spread the 'source' values into separate columns
+    values_from = ConflictStockDisplacementRaw,  # Use values from ConflictStockDisplacementRaw
+    names_prefix = ""  # Remove any default prefix (optional)
+  )
+
+conflict_review
+
+conflict_review %>% filter(ISO=="SYR")
+
+conflict_review = conflict_review %>%
+  group_by(ISO) %>%
+  mutate(
+    ConflictStockDisplacementRaw = case_when(
+      WB_region == "North America" ~ 0,
+      IMFClassification3 == "Advanced Economy" ~ 0,
+      all(is.na(Original)) ~ 0,
+      TRUE ~ Imputed,
+    )
+  ) %>%
+  ungroup() 
+
+conflict_review %>% filter(is.na(ConflictStockDisplacementRaw)) %>%
+  select(c(ISO, Year, Imputed, Original, ConflictStockDisplacementRaw)) %>%
+  arrange(ISO, Year)
+
+conflict_review %>% filter(ISO %in% c("SYR", "NCL")) %>%
+  select(c(ISO, Year, Imputed, Original, ConflictStockDisplacementRaw)) %>%
+  arrange(ISO, Year)
+
+conflict_review %>%
+  mutate(
+    ConflictStockDisplacementRaw = ifelse(
+      is.na(IMFClassification3),  # Check if IMFClassification3 is NA
+      Imputed,                    # If TRUE, assign the Imputed value
+      ConflictStockDisplacementRaw  # If FALSE, keep the original value
+    )
+  ) %>% filter(ISO %in% c("SYR", "NCL"))
+
+
+
+all2_imputed = merge(all2_imputed, conflict_review[c("ISO", "Year", "ConflictStockDisplacementRaw")],
+      by = c("ISO", "Year"))
+all2_imputed = all2_imputed %>% select(-"ConflictStockDisplacementRaw.x")
+colnames(all2_imputed)[41]= "ConflictStockDisplacementRaw"
+colnames(all2_imputed)
+
+# write.csv(all2_imputed, "all2_imputed_final_20241107.csv")
+all2_imputed
+```
+
+
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+
+all2_imputed = read.csv("all2_imputed_final_20241107.csv")
+all2_imputed = all2_imputed %>% select(-"X")
+all2_imputed
+
+all2_imputed_with_y = def_imputation2(all2_imputed)
+#write.csv(all2_imputed_with_y, "all2_imputed_with_y_final_20241107.csv")
+
+all2_imputed_with_y %>%
+  ggplot(aes(x = DisasterStockDisplacementRaw)) +
+  geom_histogram()
+
+all2_imputed_with_y %>%
+  filter(ISO == "CHN") %>%
+  ggplot(aes(x = Year)) +
+  geom_line(aes(y = DisasterStockDisplacementRaw), color = "red") 
+
+
+all2_imputed_with_y %>%
+  filter(ISO == "CHN") %>%
+  ggplot(aes(x = Year)) +
+  geom_line(aes(y = DisasterStockDisplacementRaw), color = "red") +
+  geom_line(aes(y = DisasterInternalDisplacementsRaw), color = "blue") +
+  geom_line(aes(y = sqrt(TotalDamageAdjusted000US)), color = "green") +
+  geom_line(aes(y = log(TotalAffected)), color = "orange") +
+  geom_line(aes(y = TotalNaturalDisasters), color = "purple") 
+
+
+```
+
+
+
+
+-------------------------------------------------
+
+### Train-test split
+
+Train: rows with a valid value for the response variable (only 15%)
+Test: rows with missing response (about 85%)
+
+
+```{r}
+# read all2
+
+all2 = read.csv("df_final_20241106.csv")
+all2 = all2 %>% dplyr::select(-"X") %>% arrange(ISO,Year)
+all2_colnames = colnames(all2)
+all2_colnames = gsub("\\.", "", all2_colnames)
+colnames(all2) = all2_colnames
+
+
+
+factors_cols = c(1,44:45)
+numeric_cols = c(2:43)
+all2[factors_cols] = lapply(all2[factors_cols], factor)
+
+
+test_inds = is.na(all2_imputed$DisasterStockDisplacementRaw)
+# before imputation
+train_preimput = all2[-which(test_inds),]
+train_preimput = train_preimput %>% arrange(ISO, Year)
+
+
+test_preimput = all2[which(test_inds),]
+test_preimput = test_preimput %>% arrange(ISO, Year)
+
+
+# after imputation
+train = all2_imputed[-which(test_inds),]
+train = train %>% arrange(ISO, Year)
+train = dplyr::select(train, -"ISO")
+
+test = all2_imputed[which(test_inds),]
+test = test %>% arrange(ISO, Year)
+
+```
+
+
+
+```{r fig.align="center", results='asis',  fig.width = 40, fig.height= 20, message = FALSE}
+
+library(gridExtra)
+library(ggplot2)
+# install.packages("viridis")
+library(viridis)
+
+p_grid = list()
+i = 1
+
+for (c in colnames(train[3:ncol(train)])){
+  p = train %>% 
+    filter(!is.na(DisasterStockDisplacementRaw)) %>%
+    ggplot(aes(y = log(DisasterStockDisplacementRaw/TotalPopulation), x = .data[[c]], color = WB_region)) +
+      labs(title = c, x = "", y ="") + 
+      geom_jitter(size = 2, show.legend = FALSE) + 
+    scale_color_viridis_d(option = "viridis", alpha = 0.6) +
+    theme(legend.position="none")
+  p_grid[[i]] = p
+  i = i+1
+}
+
+do.call(grid.arrange, c(p_grid, ncol = 8))
+  
+
+
+p_grid = list()
+i = 1
+
+for (c in colnames(train[3:ncol(train)])){
+  p = train %>% 
+    filter(!is.na(DisasterStockDisplacementRaw)) %>%
+    ggplot(aes(y = log(DisasterStockDisplacementRaw/TotalPopulation), x = .data[[c]], color = IMFClassification3)) +
+      labs(title = c, x = "", y ="") + 
+      geom_jitter(size = 2, show.legend = FALSE) + 
+    scale_color_viridis_d(option = "viridis", alpha = 0.6) +
+    theme(legend.position="none")
+  p_grid[[i]] = p
+  i = i+1
+}
+
+do.call(grid.arrange, c(p_grid, ncol = 8))
+```
+
+
+```{r}
+unique(train$WB_region)
+```
+
+
+-----------------------------------------------
+
+### Methodology
+
+```{r}
+# install.packages("caret")
+library(caret)
+
+train = train %>% 
+  mutate(IMFClassification3 = ifelse(is.na(IMFClassification3), "NA", as.character(IMFClassification3))) 
+
+train$log_natdis_pop = log(train$DisasterStockDisplacementRaw/train$TotalPopulation)
+train = train[!is.infinite(train$log_natdis_pop),]
+
+
+train %>%
+  ggplot(aes(x = log_natdis_pop)) +
+  geom_histogram(aes(y=..density..)) +
+  stat_function(fun = dnorm, 
+                args = list(mean = mean(train$log_natdis_pop), 
+                            sd = sd(train$log_natdis_pop)))
+
+# qq test
+ggplot(train, aes(sample = log_natdis_pop)) +
+  stat_qq() +
+  stat_qq_line()
+
+# shapro-wilk test
+## p value 0.001209 < 0.05, reject that the data is normally distributled 
+shapiro.test(train$log_natdis_pop)
+
+library(e1071)
+# skewness test: -0.3185, close to zero (meaning symmetric)
+skewness(train$log_natdis_pop)
+# kurtosis: -0.2922 not near 3
+kurtosis(train$log_natdis_pop)
+
+```
+
+
+```{r}
+# one hot encoded train all
+tempcat = dummyVars(data = train, "~.")
+train.ohe = data.frame(predict(tempcat, newdata = train))
+
+# SET 1: step aic
+lm.mod.glm = glm(log_natdis_pop~., data = train)
+lm.mod.glm.step = step(lm.mod.glm, trace=FALSE)
+summary(lm.mod.glm.step)
+
+lm.mod1.predictors = "DisasterStockDisplacementRaw + IMFClassification3 + freshwaterAsWaterstress + GDPpercapitaPPPcurrentinternational + nd_Water + ndVulnerability + nd_Sensitivity + nd_Infrastructure + nd_Health + ndGovernanceReadiness + Ndcapacity + TotalPopulation + TotalNaturalDisasters + Earthquake + Flood + Massmovementwet + Storm + TotalDamageAdjusted000US + ConflictStockDisplacementRaw"
+lm.mod1.predictors.list = strsplit(lm.mod1.predictors, " \\+ ")[[1]]
+lm.mod1.predictors.inds = which(colnames(train) %in% lm.mod1.predictors.list)
+
+
+# step aic in one hot encoding
+lm.mod1.predictors.list2 = c(lm.mod1.predictors.list[-2],
+c("IMFClassification3.Advanced.Economy" ,                       
+"IMFClassification3.Emerging.Market.and.Middle.Income.Economy",
+"IMFClassification3.Low.Income.Developing.Country"   ,         
+"IMFClassification3.NA"))
+lm.mod1.predictors.inds2 = which(colnames(train) %in% lm.mod1.predictors.list2)
+lm.mod1.predictors2 = paste(lm.mod1.predictors.list2, collapse = " + ")
+
+
+# SET 2: step aic + vif scores + WB
+library(car)
+lm.mod.glm.step.vif = data.frame(vif(lm.mod.glm.step))
+lm.mod.glm.step.vif
+lm.mod.glm.step.vif %>% filter(GVIF..1..2.Df..<=5) %>% arrange(GVIF..1..2.Df..)
+lm.mod.glm.step.vif %>% filter(GVIF..1..2.Df..<=5) %>% rownames()
+
+lm.mod2.predictors = "IMFClassification3 + WB_region + freshwaterAsWaterstress + GDPpercapitaPPPcurrentinternational + nd_Water + nd_Sensitivity + nd_Infrastructure + nd_Health + ndGovernanceReadiness + Ndcapacity + Earthquake + Flood + Massmovementwet + Storm + TotalDamageAdjusted000US + ConflictStockDisplacementRaw"
+lm.mod2.predictors.list = strsplit(lm.mod2.predictors, " \\+ ")[[1]]
+lm.mod2.predictors.inds = which(colnames(train) %in% lm.mod2.predictors.list)
+
+# vif but including imf and wb
+lm.mod2.predictors.list2 = c(lm.mod2.predictors.list[-c(1,2)],
+c("WB_region.East.Asia.and.the.Pacific",                         
+"WB_region.Europe.and.Central.Asia" ,                          
+"WB_region.Latin.America.and.the.Caribbean",                   
+"WB_region.Middle.East.and.North.Africa" ,                     
+"WB_region.North.America" ,                                    
+"WB_region.South.Asia" ,                                       
+"WB_region.Sub.Saharan.Africa",                                
+"IMFClassification3.Advanced.Economy" ,                       
+"IMFClassification3.Emerging.Market.and.Middle.Income.Economy",
+"IMFClassification3.Low.Income.Developing.Country"   ,         
+"IMFClassification3.NA"))
+lm.mod2.predictors.inds2 = which(colnames(train) %in% lm.mod2.predictors.list2)
+lm.mod2.predictors2 = paste(lm.mod2.predictors.list2, collapse = " + ")
+```
+
+
+
+
+
+```{r}
+set.seed(7406)
+#install.packages("randomForest")
+library(randomForest)
+library(caret)
+outputs = NULL
+
+ntrees = seq(100,500,100)
+mtrys = seq(1,5,1)
+nodesizes = seq(1,10,2)
+
+outputs1 = NULL
+
+for (ntree in ntrees){
+  for (mtry in mtrys){
+    for (nodesize in nodesizes){
+        flag = sort(sample(1:n, n1))
+        train2 = train.ohe[-flag,]
+        test2 = train.ohe[flag,]
+      
+        mod.rf = randomForest(data = train2, 
+                              as.formula(paste("log_natdis_pop~",lm.mod2.predictors2)),
+                              importance = TRUE,
+                              ntree = ntree,
+                              mtry = mtry,
+                              nodesize = nodesize
+                              ) 
+        pred.rf.train = predict(mod.rf, train2, type = "class")
+        trainerr = mean((pred.rf.train - train2$log_natdis_pop)^2)
+        
+        pred.rf = predict(mod.rf, test2, type="class")
+        testerr = mean((pred.rf - test2$log_natdis_pop)^2)
+        
+        outputs = rbind(outputs, c(ntree, mtry, nodesize, trainerr, testerr))
+
+    }
+  }
+}
+
+outputs = data.frame(outputs)
+colnames(outputs) = c("ntree", "mtry", "nodesize", "trainerr", "testerr")
+outputs[order(outputs$testerr),]
+# ntree = 400, mtry = 5, nodesize = 1
+
+outputs %>%
+  group_by(ntree) %>%
+  summarise(avg.trainerr = mean(trainerr),
+            avg.testerr = mean(testerr))
+outputs %>%
+  group_by(mtry) %>%
+  summarise(avg.trainerr = mean(trainerr),
+            avg.testerr = mean(testerr))
+outputs %>%
+  group_by(nodesize) %>%
+  summarise(avg.trainerr = mean(trainerr),
+            avg.testerr = mean(testerr))
+# ntree = 400, mtry = 4, nodesize = 1
+
+```
+
+
+
+
+```{r}
+set.seed(123)
+
+library(MASS)
+library(kernlab)
+library(pls)
+
+
+# Set up K-Fold Cross-Validation
+k = 5  # Number of folds for cross-validation; adjust as needed
+train_control = trainControl(
+  method = "cv",       # K-Fold Cross-Validation
+  number = k           # Number of folds
+)
+
+n = dim(train)[1] ### total number of observations
+n1 = round(n/10)
+
+train.errs = NULL
+test.errs = NULL
+
+
+for (b in 1:100){
+  print(paste("Loop:", b))
+  
+  flag = sort(sample(1:n, n1))
+  train_temp_og = train[-flag,]
+  test_temp_og = train[flag,]
+  train_temp = train.ohe[-flag,]
+  test_temp = train.ohe[flag,]
+  
+  # lm 1
+  print(paste("LM 1"))
+  lm.mod1 = train(as.formula(paste("log_natdis_pop ~", lm.mod1.predictors)), 
+                data = train_temp_og, method = "lm", trControl = train_control)
+  lm.mod1.train.preds = predict(lm.mod1, newdata = train_temp_og)
+  lm.train.mse1 = mean((train_temp_og$log_natdis_pop - lm.mod1.train.preds)^2)
+  lm.mod1.test.preds = predict(lm.mod1, newdata = test_temp_og)
+  lm.test.mse1 = mean((test_temp_og$log_natdis_pop - lm.mod1.test.preds)^2)
+  
+  # lm 2
+  print(paste("LM 2"))
+  lm.mod2 = train(as.formula(paste("log_natdis_pop ~", lm.mod2.predictors)),
+                data = train_temp_og, method = "lm", trControl = train_control)
+  lm.mod2.train.preds = predict(lm.mod2, newdata = train_temp_og)
+  lm.train.mse2 = mean((train_temp_og$log_natdis_pop - lm.mod2.train.preds)^2)
+  lm.mod2.test.preds = predict(lm.mod2, newdata = test_temp_og)
+  lm.test.mse2 = mean((test_temp_og$log_natdis_pop - lm.mod2.test.preds)^2)
+  
+  # ridge 1
+  print(paste("Ridge"))
+  ridge.mod1 = lm.ridge(as.formula(paste("log_natdis_pop ~", lm.mod2.predictors2)),
+                      data = train_temp, lambda = seq(0,100,0.01))
+  lambdaopt1 = which.min(ridge.mod1$GCV)
+  rig1coef1 = ridge.mod1$coef[,lambdaopt1]
+  rig1intercepts1 = ridge.mod1$ym - sum(ridge.mod1$xm * (rig1coef1 / ridge.mod1$scales))
+  
+  ridge.train.pred1 = scale(train_temp[lm.mod2.predictors.list2], 
+        center = F, 
+        scale = ridge.mod1$scales)%*%rig1coef1 + rig1intercepts1
+  ridge.train.mse1 = mean((ridge.train.pred1 - train_temp$log_natdis_pop)^2)
+  ridge.test.pred1 = scale(test_temp[lm.mod2.predictors.list2], 
+        center = F, 
+        scale = ridge.mod1$scales)%*%rig1coef1 + rig1intercepts1
+  ridge.test.mse1 = mean((ridge.test.pred1 - test_temp$log_natdis_pop)^2)
+  
+  
+  # pcr
+  print(paste("PCR"))
+  pcr.mod1 = pcr(data = train_temp, 
+                as.formula(paste("log_natdis_pop ~", lm.mod2.predictors2)), 
+                center = TRUE, scale = TRUE, validation = "CV")
+  pcr.train.predict1 = predict(pcr.mod1, 
+                               ncomp = which.min(pcr.mod1$validation$adj),
+                               newdata = dplyr::select(train_temp, -"log_natdis_pop"))
+  pcr.train.mse1 = mean((pcr.train.predict1 - train_temp$log_natdis_pop)^2)
+  pcr.test.predict1 = predict(pcr.mod1, 
+                               ncomp = which.min(pcr.mod1$validation$adj),
+                               newdata = dplyr::select(test_temp, -"log_natdis_pop"))
+  pcr.test.mse1 = mean((pcr.test.predict1 - test_temp$log_natdis_pop)^2)
+
+  # pls 1
+  print(paste("PLS"))
+  pls.mod1 = plsr(as.formula(paste("log_natdis_pop ~", lm.mod1.predictors2)), 
+                    data=train_temp, validation="CV")
+  pls.train.pred1 = predict(pls.mod1, 
+                            dplyr::select(train_temp, -"log_natdis_pop"), 
+                            ncomp = which.min(pls.mod1$validation$adj))
+  pls.train.mse1 = mean((pls.train.pred1 - train_temp$log_natdis_pop)^2)
+  
+  
+  pls.test.pred1 = predict(pls.mod1, 
+                            dplyr::select(test_temp, -"log_natdis_pop"), 
+                            ncomp = which.min(pls.mod1$validation$adj))
+  pls.test.mse1 = mean((pls.test.pred1 - test_temp$log_natdis_pop)^2)
+  
+  
+  # pls 2
+  print(paste("PLS"))
+  pls.mod2 = plsr(as.formula(paste("log_natdis_pop ~", lm.mod2.predictors2)), 
+                    data=train_temp, validation="CV")
+  pls.train.pred2 = predict(pls.mod2, 
+                            dplyr::select(train_temp, -"log_natdis_pop"), 
+                            ncomp = which.min(pls.mod2$validation$adj))
+  pls.train.mse2 = mean((pls.train.pred2 - train_temp$log_natdis_pop)^2)
+  
+  
+  
+  pls.test.pred2 = predict(pls.mod2, 
+                            dplyr::select(test_temp, -"log_natdis_pop"), 
+                            ncomp = which.min(pls.mod1$validation$adj))
+  pls.test.mse2 = mean((pls.test.pred2 - test_temp$log_natdis_pop)^2)
+  
+
+  # random forest: ntree = 400, mtry = 5, nodesize = 1
+  print(paste("RF 1"))
+  mod.rf1 = randomForest(data = train_temp, 
+                              as.formula(paste("log_natdis_pop~",lm.mod2.predictors2)),
+                              importance = TRUE,
+                              ntree = 400,
+                              mtry = 5,
+                              nodesize = 1
+                              ) 
+  pred.rf.train1 = predict(mod.rf1, train_temp, type = "class")
+  rf.train.err1 = mean((pred.rf.train - train_temp$log_natdis_pop)^2)
+        
+  pred.rf1 = predict(mod.rf1, test_temp, type="class")
+  rf.test.err1 = mean((pred.rf1 - test_temp$log_natdis_pop)^2)
+  
+  # random forest: ntree = 400, mtry = 4, nodesize = 1
+  print(paste("RF 2"))
+  mod.rf2 = randomForest(data = train_temp, 
+                              as.formula(paste("log_natdis_pop~",lm.mod2.predictors2)),
+                              importance = TRUE,
+                              ntree = 400,
+                              mtry = 4,
+                              nodesize = 1
+                              ) 
+  pred.rf.train2 = predict(mod.rf2, train_temp, type = "class")
+  rf.train.err2 = mean((pred.rf.train2 - train_temp$log_natdis_pop)^2)
+        
+  pred.rf2 = predict(mod.rf2, test_temp, type="class")
+  rf.test.err2 = mean((pred.rf2 - test_temp$log_natdis_pop)^2)
+
+  
+  train.errs = rbind(train.errs, 
+                     cbind(lm.train.mse1, lm.train.mse2, 
+                           ridge.train.mse1, 
+                           pcr.train.mse1, pls.train.mse1, pls.train.mse2,
+                           rf.train.err1, rf.train.err2))
+  test.errs = rbind(test.errs, 
+                     cbind(lm.test.mse1, lm.test.mse2, 
+                           ridge.test.mse1, 
+                           pcr.test.mse1, pls.test.mse1, pls.test.mse2,
+                           rf.test.err1, rf.test.err2))
+  
+  }
+
+
+
+
+round(apply(train.errs,2,mean),4)
+round(apply(test.errs,2,mean),4)
+```
+
+
+```{r}
+summary(lm.mod1)
+
+
+lm.mod1.temp = lm(as.formula(paste("log_natdis_pop ~", lm.mod1.predictors)), data = train)
+summary(lm.mod1.temp)
+
+par(mfrow = c(2, 2))
+plot(lm.mod1.temp)
+
+round(lm.mod1.temp$coefficients,4)
+round(exp(lm.mod1.temp$coefficients),4)
+```
+
+
+
+
+### PCR
+
+```{r}
+
+
+# excluding zero variance columns
+mod.pcromp = prcomp(train.ohe[,which(apply(train.ohe, 2, var)>0)], center = TRUE, scale. = TRUE)
+summary(mod.pcromp)
+plot(mod.pcromp$sdev,type="l", ylab="SD of PC", xlab="PC number")
+
+
+mod.pcr = pcr(data = train.ohe[,which(apply(train.ohe, 2, var)>0)], log_natdis_pop ~ . , center = TRUE, scale = TRUE, validation = "CV")
+
+# excluding ISO + zero variance columns 
+
+mod.pcr = pcr(data = train.ohe2[,which(apply(train.ohe2, 2, var)>0)], log_natdis_pop ~ . , center = TRUE, scale = TRUE, validation = "CV")
+summary(mod.pcr)
+validationplot(mod.pcr)
+validationplot(mod.pcr, val.type="MSEP")
+validationplot(mod.pcr, val.type="R2")
+
+
+train.pred.mod.pcr = predict(mod.pcr, train.ohe2[,which(apply(train.ohe2, 2, var)>0)], ncomp = 45)
+mean((train.pred.mod.pcr - train$log_natdis_pop)^2)
+
+# rbf kernel 
+kpca(~., data = select(train, -c(log_natdis_pop)), kernel = "rbfdot", kpar = list(sigma = 0.1), features = 2)
+
+# sigmoid kernel
+kpca(~., data = select(train, -c(log_natdis_pop)), kernel = "tanhdot", kpar = list(scale = 0.01, offset = 0), features = 2)
+```
+
+
+
+
+
+
+```{r}
+# Train a model using K-Fold CV on the training data
+model = train(
+  DisasterStockDisplacementRaw ~ .,           # Replace with your formula
+  data = train,      # Only use rows with responses for training
+  method = "rf",          # Example: random forest, adjust as needed
+  trControl = train_control
+)
+
+# Check results
+print(model)
+
+# After cross-validation, use the trained model to impute missing responses in `test_data`
+imputed_responses <- predict(model, newdata = test)
+
+# Add imputed responses to the test data
+test_data$response <- imputed_responses
+```
+
+
+
+
+
+
+
