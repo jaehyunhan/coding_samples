@@ -1,0 +1,734 @@
+---
+title: "Global South: A Variegated Group"
+output:
+  html_document:
+    df_print: paged
+    toc: true
+    toc_depth: 4
+    toc_float: 
+      collapse: false
+---
+
+### Background
+
+The objective of this notebook is to pull down key national-level statistics from central source such as WB or UN (ex: GDP per capita) and generate some summary statistics for the 8 countries of interest: Brazil, India, Mexico, Indonesia, Saudi Arabia, South Africa, Turkey, and UAE. The PI's, based on country-level reports, want to highlight the heterogeneity of the countries so we can use for example, variance statistics to do preliminary assessments of measures that might be interesting. Down the line, we may be able to visualize where countries sit in a 2 or 3 dimensional space. 
+ 
+```{r include = FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(warning = FALSE)
+knitr::opts_chunk$set(message = FALSE)
+```
+
+```{css zoom-lib-src, echo = FALSE}
+script src = "https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"
+```
+
+```{js zoom-jquery, echo = FALSE}
+ $(document).ready(function() {
+    $('body').prepend('<div class=\"zoomDiv\"><img src=\"\" class=\"zoomImg\"></div>');
+    // onClick function for all plots (img's)
+    $('img:not(.zoomImg)').click(function() {
+      $('.zoomImg').attr('src', $(this).attr('src')).css({width: '100%'});
+      $('.zoomDiv').css({opacity: '1', width: 'auto', border: '1px solid white', borderRadius: '5px', position: 'fixed', top: '50%', left: '50%', marginRight: '-50%', transform: 'translate(-50%, -50%)', boxShadow: '0px 0px 50px #888888', zIndex: '50', overflow: 'auto', maxHeight: '100%'});
+    });
+    // onClick function for zoomImg
+    $('img.zoomImg').click(function() {
+      $('.zoomDiv').css({opacity: '0', width: '0%'}); 
+    });
+  });
+```
+
+
+---------------------------------------
+
+### Data Sources
+
+From [World Bank Open Data](data.world), we pulled a total of 1,476 indicators that cover the eight countries of interest. Data availabilty for each indicator varies, which will be shown later in this notebook. Many of these variables are population subsetted by different segments (e.g. by age group and/or by gender).
+```{r warning = FALSE, message=FALSE}
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+#install.packages("plotly")
+library(plotly)
+
+WB = read_csv("C:/Users/JHan/OneDrive - Center Strategic Intl Studies Inc CSIS/CSIS/Global South/WB.csv")
+colnames(WB) = c("country", "iso", "indicator", "indicator_code", "year", "value")
+unique(WB["indicator"])
+```
+
+Six additional indicators were pulled from some UN agencies, the UNDP and UNFAO, as well as one on water stress from WRI. 
+```{r}
+#install.packages("readxl")
+library(readxl)
+UNDPMeanYearSchooling = read_excel("C:/Users/JHan/OneDrive - Center Strategic Intl Studies Inc CSIS/CSIS/New Frontiers/UNDPMeanYearSchooling.xlsx")
+UNFAOMeatConsumption = read_xlsx("C:/Users/JHan/OneDrive - Center Strategic Intl Studies Inc CSIS/CSIS/New Frontiers/UNFAOMeatConsumption2010-2021.xlsx")
+UNFAOWRIWaterStress = read_xlsx("C:/Users/JHan/OneDrive - Center Strategic Intl Studies Inc CSIS/CSIS/New Frontiers/WaterStressUNFAO-WRI.xlsx")
+
+colnames(UNDPMeanYearSchooling)[1:3] = c("iso", "country", "year")
+colnames(UNFAOMeatConsumption)[1:3]= c("iso", "country", "year")
+colnames(UNFAOWRIWaterStress)[1:3]= c("iso", "country", "year")
+UN = merge(UNDPMeanYearSchooling, UNFAOMeatConsumption, by = c("iso", "country", "year"), all = TRUE)
+UN = merge(UN, UNFAOWRIWaterStress, by = c("iso", "country", "year"), all = TRUE)
+
+#install.packages("reshape")
+library(reshape)
+UN = melt(UN, id = c("iso", "country", "year"))
+UN = UN[UN$country %in% c("Brazil", "India", "Mexico", "Indonesia", "Saudi Arabia", "South Africa", "Turkey","UAE"),]
+variable = unname(unique(UN[["variable"]]))
+data.frame(variable)
+```
+
+17 energy-related variables were pulled from Energy Institute.
+```{r}
+# ENERGY-RELATED  
+read_excel_allsheets = function(filename, tibble = FALSE) {
+    # I prefer straight data.frames
+    # but if you like tidyverse tibbles (the default with read_excel)
+    # then just pass tibble = TRUE
+    sheets = readxl::excel_sheets(filename)
+    x = lapply(sheets, function(X) readxl::read_excel(filename, sheet = X))
+    if(!tibble) x = lapply(x, as.data.frame)
+    names(x) = sheets
+    x
+}
+
+EIEnergy = read_excel_allsheets("C:/Users/JHan/OneDrive - Center Strategic Intl Studies Inc CSIS/CSIS/New Frontiers/EIEnergy2023.xlsx")
+
+# converting list of dataframes to multiple individual dataframes
+list2env(EIEnergy,envir=.GlobalEnv)
+colnames(EIEnergy$`GasConsumption(EJ)`)[1]= "Country"
+EIEnergy_combined = EIEnergy[[1]]
+for (data in EIEnergy){
+  temp = data[data$Country %in% c("Brazil", "India", "Mexico", "Indonesia", "Saudi Arabia", "South Africa", "Turkey","United Arab Emirates"),]
+  EIEnergy_combined = merge(EIEnergy_combined, temp, by = c("Country", "ID", "ISO", "Year"), all = TRUE)
+}
+
+EIEnergy_combined = select(EIEnergy_combined, -c("Primary Energy: Consumption (Exajoules).y", "ID"))
+EIEnergy_combined = melt(EIEnergy_combined, id =  c("Country","ISO", "Year"))
+eivariable = unname(unique(EIEnergy_combined[["variable"]]))
+data.frame(eivariable)
+
+```
+
+```{r}
+colnames(EIEnergy_combined)[1:4] = c("country", "iso", "year", "indicator")
+colnames(UN)[4] = c("indicator")
+WB = select(WB, -c("indicator_code"))
+
+EI_UN = rbind(EIEnergy_combined, UN)
+WB = rbind(WB, EI_UN)
+WB$value = as.numeric(WB$value)
+WB$year = as.numeric(WB$year)
+```
+
+
+
+
+Lastly, FDI inflow and outflow data are from [UNCTAD](https://unctadstat.unctad.org/datacentre/dataviewer/US.FdiFlowsStock) and are in US dollars at current prices (in millions). UNCTAD obtained the original data from each country's central banks, statistical offices, or national authorities and complemented them by international organizations data. For the economies where data were not available for any of the main sources, the values were estimated. 
+
+FDI flows are presented on a net basis, i.e., as credits less debits. Thus, in cases of reverse investment or disinvestment, FDI may be [negative](https://hbs.unctad.org/foreign-direct-investment/).
+
+```{r}
+# fdi at current prices in millions
+unctad_fdi_outward_flow = read.csv("C:/Users/JHan/OneDrive - Center Strategic Intl Studies Inc CSIS/CSIS/Global South/unctad_fdi_outward_flow.csv")
+colnames(unctad_fdi_outward_flow) = c("country", "iso", (1990:2023))
+unctad_fdi_outward_flow = unctad_fdi_outward_flow %>% melt(c("country", "iso")) 
+unctad_fdi_outward_flow$indicator = "FDI outflows at current prices in millions"
+unctad_fdi_outward_flow = unctad_fdi_outward_flow %>% filter(iso %in% c("BRA", "IND", "MEX", "IDN", "SAU", "ZAF", "TUR", "ARE"))
+
+# fdi at current prices in millions
+unctad_fdi_inward_flow = read.csv("C:/Users/JHan/OneDrive - Center Strategic Intl Studies Inc CSIS/CSIS/Global South/unctad_fdi_inward_flow.csv")
+colnames(unctad_fdi_inward_flow) = c("country", "iso", (1990:2023))
+unctad_fdi_inward_flow = unctad_fdi_inward_flow %>% melt(c("country", "iso")) 
+unctad_fdi_inward_flow$indicator = "FDI inflows at current prices in millions"
+unctad_fdi_inward_flow = unctad_fdi_inward_flow %>% filter(iso %in% c("BRA", "IND", "MEX", "IDN", "SAU", "ZAF", "TUR", "ARE"))
+
+fdi_net = rbind(unctad_fdi_inward_flow, unctad_fdi_outward_flow) %>%
+  filter(iso %in% c("BRA", "IND", "MEX", "IDN", "SAU", "ZAF", "TUR", "ARE")) %>%
+  pivot_wider(
+    names_from = indicator,
+    values_from = value
+  ) 
+colnames(fdi_net)[4:5]=c("inflows","outflows")
+colnames(fdi_net) = c("country", "iso", "year", "inflows", "outflows")
+
+colnames(unctad_fdi_outward_flow) = c("country", "iso", "year", "value", "indicator")
+colnames(unctad_fdi_inward_flow) = c("country", "iso", "year", "value", "indicator")
+
+WB = rbind(WB, unctad_fdi_outward_flow, unctad_fdi_inward_flow)
+```
+
+
+```{r}
+write.csv(WB, "WB_UN_EI_20241017.csv")
+```
+
+
+
+
+--------------------------
+
+
+
+```{r}
+library("dplyr")
+library("ggplot2")
+WB = read.csv("WB_UN_EI_20241017.csv") 
+WB = WB[2:ncol(WB)]
+```
+
+
+
+### Descriptive summary by indicator across all available years, sorted by variance
+
+```{r}
+WB %>% group_by(indicator) %>%
+  summarise(
+    count_country = n_distinct(country),
+    min_value = min(value, na.rm = TRUE),
+    min_country = country[which.min(value)],
+    max_value = max(value, na.rm = TRUE),
+    max_country = country[which.max(value)],
+    gap = max_value-min_value,
+    variance = var(value, na.rm = TRUE),
+    mean = mean(value, na.rm = TRUE),
+    median = median(value, na.rm = TRUE)
+  ) %>%
+  arrange(desc(variance))
+```
+
+```{r}
+
+```
+
+
+<br>
+<br>
+
+
+### Descriptive summary by year and indicator, sorted by variance
+```{r}
+summary_df = 
+WB %>% group_by(year, indicator) %>%
+  summarise(
+    count_country = n_distinct(country),
+    min_value = min(value, na.rm = TRUE),
+    min_country = country[which.min(value)],
+    max_value = max(value, na.rm = TRUE),
+    max_country = country[which.max(value)],
+    gap = max_value-min_value,
+    variance = var(value, na.rm = TRUE),
+    mean = mean(value, na.rm = TRUE),
+    median = median(value, na.rm = TRUE)
+  )
+
+summary_df %>%
+  arrange(desc(variance))
+```
+
+
+<br>
+<br>
+
+
+
+### Only including indicators with data for all 8 countries of interest across all years
+
+The first two tables above include indicators for which we do not have data for all eight countries. The table below filters out those and only displays the indicators that have data for all eight countries. Out of 1,476 available indicators, 859 have data for all the countries of interest across all years.
+
+```{r}
+#install.packages("DT")
+library(DT)
+
+# there are 863 variables where all the 8 countries are present
+indicators_all = unique(summary_df[summary_df$count_country==8,]$indicator)
+#indicators_all
+
+# only displaying the variables where all the 8 countries are present
+summary_df_all = summary_df[summary_df$count_country==8,]
+summary_df_all %>%
+  arrange(desc(variance)) %>%
+  datatable()
+
+```
+
+<br>
+<br>
+
+### 2023 data of the indicators that have data for all 8 countries 
+```{r}
+summary_df_2023 = WB %>% 
+  filter(year == 2023) %>%
+  group_by(indicator) %>%
+    summarise(
+    count_country = n_distinct(country),
+    min_value = min(value, na.rm = TRUE),
+    min_country = country[which.min(value)],
+    max_value = max(value, na.rm = TRUE),
+    max_country = country[which.max(value)],
+    gap = max_value-min_value,
+    variance = var(value, na.rm = TRUE)
+  )
+
+
+summary_df_all_2023 = summary_df_2023 %>% filter(count_country==8)
+
+indicators_all_2023_top10 = summary_df_all_2023[rev(order(summary_df_all_2023$variance)),]$indicator[1:10]
+summary_df_all_2023[rev(order(summary_df_all_2023$variance)),] %>%
+  datatable()
+
+
+```
+
+As expected top 14 variables are all economic measures such as GDP, GNI, or other income related variables.
+
+
+<br>
+<br>
+
+
+### FDI in millions of dollars at current prices {.tabset}
+
+NOTE: FDI flows are presented on a net basis, i.e., as credits less debits. Thus, in cases of reverse investment or disinvestment, FDI may be [negative](https://hbs.unctad.org/foreign-direct-investment/).
+
+#### Net Flows
+
+```{r}
+library(tidyr)
+fdi_net %>% 
+  group_by(country,iso,year) %>%
+  summarise(net = inflows-outflows) %>%
+  group_by(year) %>%
+  summarise(
+    count_country = n_distinct(country),
+    min_value = min(net, na.rm = TRUE),
+    min_country = country[which.min(net)],
+    max_value = max(net, na.rm = TRUE),
+    max_country = country[which.max(net)],
+    gap = max_value-min_value,
+    variance = var(net, na.rm = TRUE),
+    mean = mean(net, na.rm = TRUE),
+    median = median(net, na.rm = TRUE)
+    ) %>%
+  datatable()
+```
+
+
+-------------------------------------------------------------------
+
+#### Outward Flows
+```{r}
+unctad_fdi_outward_flow %>% 
+  filter(iso %in% c("BRA", "IND", "MEX", "IDN", "SAU", "ZAF", "TUR", "ARE")) %>%
+  group_by(year) %>%
+  summarise(
+    count_country = n_distinct(country),
+    min_value = min(value, na.rm = TRUE),
+    min_country = country[which.min(value)],
+    max_value = max(value, na.rm = TRUE),
+    max_country = country[which.max(value)],
+    gap = max_value-min_value,
+    variance = var(value, na.rm = TRUE),
+    mean = mean(value, na.rm = TRUE),
+    median = median(value, na.rm = TRUE)
+    ) %>%
+  datatable()
+```
+-------------------------------------------------------------------
+
+
+#### Inward Flows
+```{r}
+unctad_fdi_inward_flow %>% 
+  filter(iso %in% c("BRA", "IND", "MEX", "IDN", "SAU", "ZAF", "TUR", "ARE")) %>%
+  group_by(year) %>%
+  summarise(
+    count_country = n_distinct(country),
+    min_value = min(value, na.rm = TRUE),
+    min_country = country[which.min(value)],
+    max_value = max(value, na.rm = TRUE),
+    max_country = country[which.max(value)],
+    gap = max_value-min_value,
+    variance = var(value, na.rm = TRUE),
+    mean = mean(value, na.rm = TRUE),
+    median = median(value, na.rm = TRUE)
+    ) %>%
+  datatable()
+```
+
+<br>
+<br>
+
+
+
+
+--------------------
+
+### Plots
+
+Plotting variables with high variance while accounting for usefulness/applicabilty to our purpose. For instance, among the GDP/GNI variations, I chose to highlight the PPP (purchasing power parities) measures over others. According to the [World Bank](https://www.worldbank.org/en/programs/icp/brief/VC_Uses), PPPs control for differences in price levels between economies and equalize the purchasing power of various currencies, enabling cross-country comparisons that reflect only differences in the volume of national economic outputs.   
+
+
+I decided to overlay violin charts atop scatterplots, which allows for a view of the data that combines the detailed distribution insights of the violin plot with the individual data points shown in the scatter plot. The violin plot provides context on the data's distribution and variance; a "long" violin indicates a wide range of values and high variance within that category, whereas a "short" violin suggests a more concentrated distribution. 
+ 
+**You can click the graphs to enlarge them.**
+
+```{r results='asis',  fig.width = 24, fig.height= 10}
+# creating a function to plot violin charts
+plot_violin = function(i){
+  p = WB %>% 
+    filter(indicator == i) %>%
+    mutate(year = factor(year)) %>% 
+    ggplot(aes(x = year, y = value)) +
+    labs(title = i) +
+    geom_point(position = "jitter", aes(colour= country, shape = country, size = 7))+
+    guides(alpha = "none",  # Hide alpha legend
+           size = "none",   # Hide size legend
+           color = guide_legend(title = "Country")  # Show country legend
+           ) + 
+    stat_summary(fun = min, geom = "point", shape = 95, size = 5) +
+    stat_summary(fun = max, geom = "point", shape = 95, size = 5) +
+    geom_violin(aes(alpha = 0.5)) + 
+    scale_shape_manual(values = c(16, 17, 15, 16, 17, 15, 16, 17)) + # Manually assign shapes
+    scale_color_manual(values = c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")) 
+  p
+  #ggplotly(p)
+}
+```
+
+
+```{r, functions}
+catHeader <- function(text = "", level = 3) {
+    cat(paste0("\n\n", 
+               paste(rep("#", level), collapse = ""), 
+               " ", text, "\n"))
+}
+```
+
+
+#### (1) Economic indicators {.tabset}
+
+##### GDP PPP
+```{r fig.align="center", results='asis',  fig.width = 24, fig.height= 10}
+plot_violin("GDP, PPP (current international $)")
+```
+
+
+
+-------------------------------------------------------------------
+
+
+##### GNI PPP
+```{r fig.align="center", results='asis',  fig.width = 24, fig.height= 10}
+plot_violin("GNI, PPP (current international $)")
+```
+
+
+-------------------------------------------------------------------
+
+
+##### Per Capita GDP PPP
+```{r fig.align="center", results='asis',  fig.width = 24, fig.height= 10}
+plot_violin("GDP per capita, PPP (current international $)")
+```
+
+
+```{r fig.align="center", results='asis',  fig.width = 24, fig.height= 10}
+WB %>% filter(indicator == "GDP per capita, PPP (current international $)") %>%
+  ggplot(aes(x = year, y = value)) +
+  geom_point(size = 7,color=  "darkgrey") +
+  geom_smooth(aes(color = country), size = 2, method = "loess", se = FALSE) +
+  scale_shape_manual(values = c(16, 17, 15, 16, 17, 15, 16, 17)) + # Manually assign shapes
+  scale_color_manual(values = c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")) +
+  labs(title = "GDP per capita, PPP (current international $) with LOESS smoothed lines", x="", y= "")
+```
+
+
+-------------------------------------------------------------------
+
+
+##### Per Capita GDP Current USD
+```{r fig.align="center", results='asis',  fig.width = 24, fig.height= 10}
+plot_violin("GDP per capita (current US$)")
+```
+
+```{r fig.align="center", results='asis',  fig.width = 24, fig.height= 10}
+WB %>% filter(indicator == "GDP per capita (current US$)") %>%
+  ggplot(aes(x = year, y = value)) +
+  geom_point(size = 7,color=  "darkgrey") +
+  geom_smooth(aes(color = country), size = 2, method = "loess", se = FALSE) +
+  scale_shape_manual(values = c(16, 17, 15, 16, 17, 15, 16, 17)) + # Manually assign shapes
+  scale_color_manual(values = c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")) +
+  labs(title = "GDP per capita (current US$) with LOESS smoothed lines", x="", y= "")
+```
+
+
+-------------------------------------------------------------------
+
+
+##### Per Capia GNI PPP
+```{r fig.align="center", results='asis',  fig.width = 24, fig.height= 10}
+plot_violin("GNI per capita, PPP (current international $)")
+```
+
+
+
+-------------------------------------------------------------------
+
+
+##### GDP Per Person Employed
+```{r fig.align="center", results='asis',  fig.width = 24, fig.height= 10}
+plot_violin("GDP per person employed (constant 2021 PPP $)")
+```
+
+
+-------------------------------------------------------------------
+
+
+##### Per Capita GDP Growth
+```{r fig.align="center", results='asis',  fig.width = 24, fig.height= 10}
+plot_violin("GDP per capita growth (annual %)")
+```
+
+```{r fig.align="center", results='asis',  fig.width = 24, fig.height= 10}
+WB %>% filter(indicator == "GDP per capita growth (annual %)") %>%
+  ggplot(aes(x = year, y = value)) +
+  geom_point(size = 7,color=  "darkgrey") +
+  geom_smooth(aes(color = country), size = 2, method = "loess", se = FALSE) +
+  scale_shape_manual(values = c(16, 17, 15, 16, 17, 15, 16, 17)) + # Manually assign shapes
+  scale_color_manual(values = c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")) +
+  labs(title = "GDP per capita growth (annual %) with LOESS smoothed lines", x="", y= "")
+```
+
+
+
+
+------------------------------------------------------------------
+
+##### FDI Inflows
+
+```{r fig.align="center", results='asis',  fig.width = 24, fig.height= 10}
+plot_violin("FDI inflows at current prices in millions")
+```
+
+-------------------------------------------------------------------
+
+##### FDI Outflows
+
+```{r fig.align="center", results='asis',  fig.width = 24, fig.height= 10}
+plot_violin("FDI outflows at current prices in millions")
+```
+
+
+
+-------------------------------------------------------------------
+
+
+##### Value Added by Sector 
+Accoding to [World Bank](https://databank.worldbank.org/metadataglossary/world-development-indicators/series/NV.IND.TOTL.ZS#:~:text=Value%20added%20is%20the%20value,of%20fixed%20capital%20in%20production.), value added is the value of a producer's gross output minus the value of intermediate goods and services consumed in production, before accounting for consumption of fixed capital. 
+
+While total GDP is measured at purchaser prices (which include net taxes on products but exclude sales or value-added taxes), value added by industry is measured at basic prices (which include net taxes on product). This results in the total sum of values added by industry exceeding 100% of GDP, as shown in the first plot, "Value Added By Sector (2022, % of GDP)".  
+
+To address this, I used the nominal values, as seen in the second plot, "Value Added By Sector (2022, current USD)" and normalized them to 100% to show the proportional distribution among sectors, as shown in the third plot, "Value Added By Sector Normalized to 100% (2022, current USD as %)."
+
+
+```{r fig.align="center", results='asis',  fig.width = 24, fig.height= 10}
+WB %>% 
+  filter(indicator %in% c("Industry (including construction), value added (% of GDP)", 
+                          "Manufacturing, value added (% of GDP)",
+                          "Agriculture, forestry, and fishing, value added (% of GDP)",
+                          "Services, value added (% of GDP)") &
+           year == 2022) %>%
+  group_by(iso, year) %>%
+  ggplot(aes(fill = indicator, x = country, y = value)) +
+  geom_bar(stat = "identity") +
+  geom_hline(aes(yintercept = 100), color = "red", size = 2) +
+  geom_text(aes(0.5,100,label = "100%", vjust = -1, color = "red")) +
+  labs(title = "Value Added By Sector (2022, % of GDP)") +
+  geom_text(aes(label = round(value,2)), position = position_stack(vjust = 0.5))
+```
+
+
+```{r fig.align="center", results='asis',  fig.width = 24, fig.height= 10}
+WB %>% 
+  filter(indicator %in% c("Industry (including construction), value added (current US$)", 
+                          "Manufacturing, value added (current US$)",
+                          "Agriculture, forestry, and fishing, value added (current US$)",
+                          "Services, value added (current US$)") &
+           year == 2022) %>%
+  group_by(iso, year) %>%
+  ggplot(aes(fill = indicator, x = country, y = value)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Value Added By Sector (2022, current US$)") +
+  geom_text(aes(label = round(value,2)), position = position_stack(vjust = 0.5))
+```
+
+
+```{r fig.align="center", results='asis',  fig.width = 24, fig.height= 10}
+WB %>% 
+  filter(indicator %in% c("Industry (including construction), value added (current US$)", 
+                          "Manufacturing, value added (current US$)",
+                          "Agriculture, forestry, and fishing, value added (current US$)",
+                          "Services, value added (current US$)") &
+           year == 2022) %>%
+  group_by(country, year) %>%
+  summarise(indicator = indicator,
+            perc = value/sum(value))%>%
+  group_by(country) %>%
+  ggplot(aes(fill = indicator, x = country, y = perc)) +
+  geom_bar(stat = "identity", position = "fill") +
+  labs(title = "Value Added By Sector Normalized to 100% (2022, current US$ as %)") +
+  geom_text(aes(label = round(perc*100,2)), position = position_stack(vjust = 0.5))
+```
+
+
+
+-------------------------------------------------------------------
+
+#### (2) Population indicators 
+##### (i) Raw numbers {.tabset}
+###### Male 15-64
+```{r fig.align="center", fig.width = 24, fig.height= 10, results='asis'}
+plot_violin("Population ages 15-64, male")
+```
+
+###### Female 15-64
+```{r fig.align="center", fig.width = 24, fig.height= 10, results='asis'}
+plot_violin("Population ages 15-64, female")
+```
+
+###### Labor Force
+```{r fig.align="center", fig.width = 24, fig.height= 10, results='asis'}
+plot_violin("Labor force, total")
+```
+
+###### Female to Male Labor Force Participation Rate 
+```{r fig.align="center", fig.width = 24, fig.height= 10, results='asis'}
+plot_violin("Ratio of female to male labor force participation rate (%) (modeled ILO estimate)")
+```
+
+
+###### 0-14
+```{r fig.align="center", fig.width = 24, fig.height= 10, results='asis'}
+plot_violin("Population ages 0-14, total")
+```
+
+###### 65+
+```{r fig.align="center", fig.width = 24, fig.height= 10, results='asis'}
+plot_violin("Population ages 65 and above, total")
+```
+
+###### Rural
+```{r fig.align="center", fig.width = 24, fig.height= 10, results='asis'}
+plot_violin("Rural population")
+```
+
+###### Urban
+```{r fig.align="center", fig.width = 24, fig.height= 10, results='asis'}
+plot_violin("Urban population")
+```
+
+###### Urban over 1 million
+```{r fig.align="center", fig.width = 24, fig.height= 10, results='asis'}
+plot_violin("Population in urban agglomerations of more than 1 million")
+```
+
+##### {-}
+
+India's significantly larger population skewed the number of different subpopulations (e.g. by gender, by age group), making it challenging to see meaningful cross-country comparisons.
+
+To address this, we also show the percentage of each subpopulation relative to the total population for each country. By showing the data as proportions, we can more accurately compare how these subpopulations differ across countries, regardless of their overall population size. This approach highlights the relative importance of each subpopulation within its respective country, offering a clearer, more balanced comparison.
+
+
+
+<br>
+
+##### (ii) Proportions {.tabset}
+###### Male 15-64
+```{r fig.align="center", fig.width = 24, fig.height= 10, results='asis'}
+plot_violin("Population ages 15-64, male (% of male population)")
+```
+
+-------------------------------------------------------------------
+
+###### Female 15-64
+```{r fig.align="center", fig.width = 24, fig.height= 10, results='asis'}
+plot_violin("Population ages 15-64, female (% of female population)")
+```
+
+-------------------------------------------------------------------
+
+###### 0-14
+```{r fig.align="center", fig.width = 24, fig.height= 10, results='asis'}
+plot_violin("Population ages 0-14 (% of total population)")
+```
+
+-------------------------------------------------------------------
+
+###### 65+
+```{r fig.align="center", fig.width = 24, fig.height= 10, results='asis'}
+plot_violin("Population ages 65 and above (% of total population)")
+```
+
+-------------------------------------------------------------------
+
+###### Rural
+```{r fig.align="center", fig.width = 24, fig.height= 10, results='asis'}
+plot_violin("Rural population (% of total population)")
+```
+
+-------------------------------------------------------------------
+
+###### Urban
+```{r fig.align="center", fig.width = 24, fig.height= 10, results='asis'}
+plot_violin("Urban population (% of total population)")
+```
+
+-------------------------------------------------------------------
+
+
+###### Urban over 1 million
+```{r fig.align="center", fig.width = 24, fig.height= 10, results='asis'}
+plot_violin("Population in urban agglomerations of more than 1 million (% of total population)")
+```
+
+---------------------------------------------------------------
+
+
+#### (3) Immigration {.tabset} 
+##### Refugee by asylum country
+```{r fig.align="center", fig.width = 24, fig.height= 10}
+plot_violin("Refugee population by country or territory of asylum")	
+```
+
+##### Refugee by origin country
+```{r fig.align="center", fig.width = 24, fig.height= 10}
+plot_violin("Refugee population by country or territory of origin")
+```
+
+##### Net migration
+```{r fig.align="center", fig.width = 24, fig.height= 10}
+plot_violin("Net migration")
+
+#install.packages("svglite")
+library(svglite)
+svglite("net_migration_plot.svg", width = 8, height = 6)
+print(plot_violin("Net migration"))
+dev.off()
+
+ggsave(
+  "net_migration_plot.svg",
+  plot = plot_violin("Net migration"),
+  device = "svg",
+  width = 8,
+  height = 6
+)
+```
+
+
+
+
+
+
+
